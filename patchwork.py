@@ -102,6 +102,79 @@ def stage_hunk(root, fn, patch):
 def git_commit(root, message):
     return _git("commit", "-m", message, cwd=root)
 
+# ── repo picker (scan for git repos, choose one) ──────────────────────
+SCAN_PRUNE_NAMES = ("node_modules", ".cache", ".mozilla", ".npm", ".cargo",
+                    ".local", ".var", "venv", ".venv", "__pycache__",
+                    ".steam", ".electron-gyp")
+
+def scan_roots():
+    extra = os.environ.get("PATCHWORK_SCAN_ROOTS", "")
+    roots = [os.path.expanduser("~")]
+    roots += [p for p in extra.split(":") if p.strip()]
+    return [r for r in roots if os.path.isdir(r)]
+
+def find_repos(limit=40):
+    """All dirs containing a `.git` subdir under the scan roots."""
+    depth = int(os.environ.get("PATCHWORK_SCAN_DEPTH", "4"))
+    prune = []
+    for i, name in enumerate(SCAN_PRUNE_NAMES):
+        prune += (["-o"] if i else []) + ["-name", name]
+    found = []
+    skip_hidden = os.environ.get("PATCHWORK_SCAN_HIDDEN", "") != "1"
+    for root in scan_roots():
+        tests = list(prune)
+        if skip_hidden:
+            tests += ["-o", "(", "-name", ".*", "!", "-name", ".git", ")"]
+        cmd = (["find", root, "-maxdepth", str(depth), "("] + tests +
+               [")", "-prune", "-o", "-type", "d", "-name", ".git", "-print"])
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        except Exception:
+            continue
+        if r.returncode != 0:
+            continue
+        for ln in r.stdout.splitlines():
+            repo = os.path.dirname(ln.strip())
+            if repo and repo not in found:
+                found.append(repo)
+            if len(found) >= limit:
+                break
+    return sorted(found)
+
+def repo_info(repo):
+    rc, out, _ = _git("rev-parse", "--abbrev-ref", "HEAD", cwd=repo)
+    branch = out.strip() if rc == 0 else "?"
+    rc, out, _ = _git("status", "--porcelain", cwd=repo)
+    dirty = len([l for l in out.splitlines() if l.strip()]) if rc == 0 else 0
+    return branch, dirty
+
+def pick_repo():
+    """Interactive numbered list. Returns chosen path or None."""
+    repos = find_repos()
+    if not repos:
+        print("No git repos found under: %s" % ", ".join(scan_roots()))
+        return None
+    infos = [(r,) + repo_info(r) for r in repos]
+    for n, (r, b, d) in enumerate(infos, 1):
+        state = "*%d dirty" % d if d else "clean"
+        print("%2d. %-52s [%s] %s" % (n, r, b, state))
+    try:
+        sel = input("Select repo [1-%d] (ENTER cancels): " % len(infos)).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+    if not sel:
+        return None
+    try:
+        idx = int(sel) - 1
+    except ValueError:
+        print("Not a number — cancelled.")
+        return None
+    if not 0 <= idx < len(infos):
+        print("Out of range — cancelled.")
+        return None
+    return infos[idx][0]
+
 # ── branding (one small mark; mascot lives in help only) ─────────────
 LOGO = [
  "██████╗  █████╗ ████████╗ ██████╗██╗  ██╗██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗",
@@ -220,7 +293,8 @@ class State:
                         "SPACE toggles hunks, C commits." % (LIVE_BRANCH, n))
         else:
             self.msg = ("Demo queue: %d related edits. SPACE toggles hunks, "
-                        "x rejects, C commits as one operation." % n)
+                        "x rejects, C commits as one operation. "
+                        "Tip: 'patchwork --pick' lists your repos." % n)
         self.committed = False
         self.show_help = False
 
@@ -586,13 +660,24 @@ def do_commit(stdscr, st, msg):
     else:
         st.msg = "Commit failed: %s" % (err or out).strip()[:110]
 
+def run_tui():
+    try:
+        curses.wrapper(main)
+    except curses.error:
+        splash()
+        print("  (no TTY detected — banner shown instead. "
+              "Run in a real terminal for the 3-pane TUI.)")
+
 if __name__ == "__main__":
     if "--splash" in sys.argv:
         splash()
+    elif "--pick" in sys.argv:
+        repo = pick_repo()
+        if repo:
+            if "--print" in sys.argv:
+                print(repo)  # for shell helpers: cd "$(patchwork --pick --print)"
+            else:
+                os.chdir(repo)
+                run_tui()
     else:
-        try:
-            curses.wrapper(main)
-        except curses.error:
-            splash()
-            print("  (no TTY detected — banner shown instead. "
-                  "Run in a real terminal for the 3-pane TUI.)")
+        run_tui()
