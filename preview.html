@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>PATCHWORK — layout preview</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#101418;color:#e6edf3;font-family:Menlo,Consolas,monospace;height:100vh}
+.hdr{background:#fff;color:#000;font-weight:700;padding:6px 14px}
+.grid{display:grid;grid-template-columns:300px 1fr 360px;height:calc(100vh - 92px)}
+.pane{border-right:1px solid #30363d;padding:10px 12px;overflow:hidden}
+.pane h2{font-size:13px;margin-bottom:8px;color:#e3b341}
+.f{display:block;padding:2px 6px;font-size:12.5px;white-space:nowrap}
+.sel{background:#fff;color:#000;font-weight:700}
+.dim{color:#8b949e}.cy{color:#39c5cf}.add{color:#3fb950}.del{color:#f85149}.ctx{color:#8b949e}
+.hunk{background:#0d3a4a;color:#a5f3fc;font-weight:700;margin-top:10px;padding:2px 6px;font-size:12.5px}
+pre{font-size:12.5px;line-height:1.5;white-space:pre-wrap}
+.ftr{background:#1f6feb;color:#fff;padding:6px 14px;font-size:13px}
+.msg{padding:6px 14px;color:#39c5cf;font-size:13px}
+.note{color:#8b949e;font-size:12px;padding:6px 14px}
+</style></head><body>
+<div class="hdr">PATCHWORK - &nbsp;branch: auth_v2&nbsp; [DEMO]&nbsp; 15 file(s)</div>
+<div class="grid">
+<div class="pane"><h2>&gt; 1 FILES</h2>
+<span class="f sel">[+] M src/auth/login.ts</span>
+<span class="f cy">[+] M src/auth/session.ts</span>
+<span class="f cy">[+] M src/auth/oauth.ts</span>
+<span class="f cy">[+] M src/api/middleware.ts</span>
+<span class="f cy">[+] M src/api/users.ts</span>
+<span class="f cy">[+] M src/api/billing.ts</span>
+<span class="f cy">[+] M src/db/schema.prisma</span>
+<span class="f cy">[+] A src/db/migrate_014.sql</span>
+<span class="f cy">[+] M src/cache/redis.ts</span>
+<span class="f cy">[+] M web/login.tsx</span>
+<span class="f cy">[+] M web/account.tsx</span>
+<span class="f dim">[+] M tests/auth.test.ts</span>
+<span class="f dim">[+] M tests/api.test.ts</span>
+<span class="f dim">[+] M docs/AUTH.md</span>
+<span class="f dim">[+] M ops/flags.yaml</span>
+</div>
+<div class="pane"><h2>2 DIFF</h2><pre>
+<b> M src/auth/login.ts</b>
+<span class="cy"> migrate bcrypt -&gt; argon2id, add passkey hook</span>
+<div class="hunk">[+] hunk 1: login.ts — argon2id swap</div>
+<span class="ctx">   // patchwork: ai-refactor auth_v2</span>
+<span class="del">-  const hash = await bcrypt.hash(pw, 10);</span>
+<span class="add">+  const hash = await argon2.hash(pw, { type: 'id' });</span>
+<span class="ctx">   const u = await db.user.create({ data: { hash } });</span>
+<div class="hunk">[+] hunk 2: guard + test</div>
+<span class="ctx">   if (!ctx.principal) throw new AuthError(401);</span>
+<span class="del">-  return handler(ctx);</span>
+<span class="add">+  return withIdempotency(ctx, () =&gt; handler(ctx));</span>
+<div class="hunk">[-] hunk 3: types/docs touch</div>
+<span class="dim">    (rejected — excluded from commit)</span>
+</pre></div>
+<div class="pane"><h2>3 DETAIL</h2><pre>
+<b> Summary:</b>
+<span class="cy">  bcrypt cost 10 is dated. argon2id
+  resists GPU cracking; OWASP
+  recommendation.</span>
+
+<b> Actions:</b>
+<span class="dim">   1. approve   2. reject-hunk   3. regenerate
+   4. explain   5. commit-one-op</span>
+</pre></div>
+</div>
+<div class="ftr">staged 44/45 [####################--] 97% | TAB pane&nbsp; j/k move&nbsp; SPC hunk&nbsp; a file&nbsp; x reject&nbsp; A all&nbsp; C commit&nbsp; ? help&nbsp; q quit</div>
+<div class="msg">&gt;&gt; Rejected hunk 3 in src/auth/login.ts (excluded from commit).</div>
+<div class="note">Static layout preview — the real app is the curses TUI: ./run.sh (live git in a repo, demo queue elsewhere).</div>
+</body></html>
