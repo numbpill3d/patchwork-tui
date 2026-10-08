@@ -94,10 +94,7 @@ def stage_hunk(root, fn, patch):
     p = subprocess.run(["git", "apply", "--cached", "--unidiff-zero", "-"],
                        input=patch, text=True, cwd=root,
                        capture_output=True, timeout=15)
-    if p.returncode != 0:  # fall back: stage whole file
-        rc, _, err = _git("add", "--", fn, cwd=root)
-        return rc == 0, ("fallback add: " + err.strip() if rc else p.stderr.strip())
-    return True, ""
+    return p.returncode == 0, p.stderr.strip()
 
 def git_commit(root, message):
     return _git("commit", "-m", message, cwd=root)
