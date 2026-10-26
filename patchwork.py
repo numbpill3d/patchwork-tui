@@ -145,30 +145,34 @@ def repo_info(repo):
     dirty = len([l for l in out.splitlines() if l.strip()]) if rc == 0 else 0
     return branch, dirty
 
-def pick_repo():
+def pick_repo(ui_stream=None):
     """Interactive numbered list. Returns chosen path or None."""
+    ui_stream = ui_stream or sys.stdout
     repos = find_repos()
     if not repos:
-        print("No git repos found under: %s" % ", ".join(scan_roots()))
+        print("No git repos found under: %s" % ", ".join(scan_roots()),
+              file=ui_stream)
         return None
     infos = [(r,) + repo_info(r) for r in repos]
     for n, (r, b, d) in enumerate(infos, 1):
         state = "*%d dirty" % d if d else "clean"
-        print("%2d. %-52s [%s] %s" % (n, r, b, state))
+        print("%2d. %-52s [%s] %s" % (n, r, b, state), file=ui_stream)
     try:
-        sel = input("Select repo [1-%d] (ENTER cancels): " % len(infos)).strip()
+        print("Select repo [1-%d] (ENTER cancels): " % len(infos),
+              end="", file=ui_stream, flush=True)
+        sel = input().strip()
     except (EOFError, KeyboardInterrupt):
-        print()
+        print(file=ui_stream)
         return None
     if not sel:
         return None
     try:
         idx = int(sel) - 1
     except ValueError:
-        print("Not a number — cancelled.")
+        print("Not a number — cancelled.", file=ui_stream)
         return None
     if not 0 <= idx < len(infos):
-        print("Out of range — cancelled.")
+        print("Out of range — cancelled.", file=ui_stream)
         return None
     return infos[idx][0]
 
@@ -669,7 +673,7 @@ if __name__ == "__main__":
     if "--splash" in sys.argv:
         splash()
     elif "--pick" in sys.argv:
-        repo = pick_repo()
+        repo = pick_repo(sys.stderr if "--print" in sys.argv else sys.stdout)
         if repo:
             if "--print" in sys.argv:
                 print(repo)  # for shell helpers: cd "$(patchwork --pick --print)"

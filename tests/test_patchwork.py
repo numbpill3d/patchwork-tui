@@ -1,8 +1,12 @@
 import importlib.util
+import io
+from contextlib import redirect_stdout
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "patchwork.py"
 SPEC = importlib.util.spec_from_file_location("patchwork", MODULE_PATH)
@@ -33,6 +37,22 @@ class StageHunkTests(unittest.TestCase):
                 ).returncode,
                 0,
             )
+
+
+class PickRepoTests(unittest.TestCase):
+    def test_print_mode_ui_can_be_kept_out_of_captured_path(self):
+        ui = io.StringIO()
+        captured = io.StringIO()
+        with mock.patch.object(patchwork, "find_repos", return_value=["/tmp/repo"]), \
+                mock.patch.object(patchwork, "repo_info", return_value=("main", 0)), \
+                mock.patch.object(sys, "stdin", io.StringIO("1\n")), \
+                redirect_stdout(captured):
+            selected = patchwork.pick_repo(ui_stream=ui)
+            print(selected)
+
+        self.assertEqual(captured.getvalue(), "/tmp/repo\n")
+        self.assertIn("/tmp/repo", ui.getvalue())
+        self.assertIn("Select repo", ui.getvalue())
 
 
 if __name__ == "__main__":
